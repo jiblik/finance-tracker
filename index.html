@@ -657,8 +657,9 @@
     <div id="syncInfo" style="font-size:0.82rem;color:var(--text2);margin-bottom:12px;"></div>
     <div class="modal-actions">
       <button class="btn btn-danger btn-sm" onclick="unlinkGist()">Unlink</button>
+      <button class="btn btn-secondary btn-sm" onclick="testSyncConnection()">Test Connection</button>
       <button class="btn btn-secondary" onclick="closeSyncModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSyncSettings()">Save</button>
+      <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync</button>
     </div>
   </div>
 </div>
@@ -2204,9 +2205,36 @@ function saveSyncSettings() {
   setSyncToken(token);
   if (!state.sync) state.sync = {};
   if (gistId) state.sync.gistId = gistId;
+  else if (!gistId && state.sync.gistId) { /* keep existing */ }
   state.sync.autoSync = autoSync;
   save(); closeSyncModal(); updateSyncButton();
-  if (token) showSyncToast('Sync settings saved. Click the sync button to sync.');
+  if (token) syncGist(); // Auto-sync immediately after saving
+}
+
+async function testSyncConnection() {
+  const token = document.getElementById('syncToken').value.trim();
+  const info = document.getElementById('syncInfo');
+  if (!token) { info.innerHTML = '<span style="color:var(--red);">Please enter a token first.</span>'; return; }
+  info.textContent = 'Testing connection...';
+  try {
+    const resp = await fetch('https://api.github.com/user', {
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+    });
+    if (resp.status === 401) {
+      info.innerHTML = '<span style="color:var(--red);">Invalid token. Make sure you copied the full token.</span>';
+      return;
+    }
+    const user = await resp.json();
+    // Check gist scope
+    const scopes = resp.headers.get('x-oauth-scopes') || '';
+    if (!scopes.includes('gist')) {
+      info.innerHTML = '<span style="color:var(--red);">Token works but missing "gist" scope. Create a new token with gist permission.</span>';
+      return;
+    }
+    info.innerHTML = '<span style="color:var(--green);">Connected as <strong>' + user.login + '</strong>. Gist scope OK.</span>';
+  } catch(e) {
+    info.innerHTML = '<span style="color:var(--red);">Network error: ' + e.message + '</span>';
+  }
 }
 
 function unlinkGist() {
