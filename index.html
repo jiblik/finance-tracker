@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finance Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --bg2: #ffffff;
+    --bg3: #e8eaf0;
+    --text: #1a1a2e;
+    --text2: #6b7280;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --green: #22c55e;
+    --red: #ef4444;
+    --border: #e5e7eb;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow2: 0 4px 12px rgba(0,0,0,0.1);
+    --radius: 12px;
+  }
+  [data-theme="dark"] {
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #334155;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --border: #334155;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow2: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    transition: background 0.3s, color 0.3s;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  /* Header */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 1.5rem; font-weight: 700; }
+  header h1 span { color: var(--accent); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .theme-toggle {
+    background: var(--bg3);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--text);
+    transition: background 0.2s;
+  }
+  .theme-toggle:hover { background: var(--accent); color: #fff; }
+
+  /* Account Tabs */
+  .account-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    border: 2px solid var(--border);
+    background: var(--bg2);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text2);
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Month Filter */
+  .month-filter {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .month-filter label { font-weight: 600; font-size: 0.9rem; color: var(--text2); }
+  .month-filter select, .month-filter input[type="month"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg2);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  /* Summary Cards */
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: var(--shadow2); }
+  .card-label { font-size: 0.8rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .card-value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+  .card-value.income { color: var(--green); }
+  .card-value.expense { color: var(--red); }
+  .card-value.balance { color: var(--accent); }
+
+  /* Charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .chart-card h3 { font-size: 0.95rem; margin-bottom: 16px; color: var(--text2); }
+  .chart-card canvas { max-height: 280px; }
+
+  /* Transactions */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .section-header h2 { font-size: 1.2rem; font-weight: 700; }
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-secondary { background: var(--bg3); color: var(--text); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+
+  .transactions-list { display: flex; flex-direction: column; gap: 8px; }
+  .tx-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg2);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s;
+  }
+  .tx-item:hover { box-shadow: var(--shadow2); }
+  .tx-cat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-desc { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-meta { font-size: 0.78rem; color: var(--text2); }
+  .tx-amount { font-weight: 700; font-size: 1rem; text-align: right; white-space: nowrap; }
+  .tx-amount.income { color: var(--green); }
+  .tx-amount.expense { color: var(--red); }
+  .tx-actions { display: flex; gap: 4px; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border-radius: 16px;
+    padding: 28px;
+    width: 90%;
+    max-width: 460px;
+    box-shadow: var(--shadow2);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h3 { margin-bottom: 20px; font-size: 1.1rem; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .form-group textarea { resize: vertical; min-height: 100px; font-family: monospace; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+  }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Type toggle */
+  .type-toggle { display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .type-toggle button {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    background: var(--bg);
+    color: var(--text2);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .type-toggle button.active-expense { background: var(--red); color: #fff; }
+  .type-toggle button.active-income { background: var(--green); color: #fff; }
+
+  /* Import/Export bar */
+  .io-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text2);
+  }
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .summary-cards { grid-template-columns: 1fr 1fr; }
+    .form-row { flex-direction: column; gap: 0; }
+    .container { padding: 12px; }
+  }
+  @media (max-width: 400px) {
+    .summary-cards { grid-template-columns: 1fr; }
+  }
+
+  /* Category Filter */
+  .cat-filter {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+  .cat-filter label { font-weight: 600; font-size: 0.9rem; color: var(--text2); margin-right: 4px; }
+  .cat-chip {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .cat-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .cat-chip.active {
+    color: #fff;
+    border-color: transparent;
+  }
+
+  /* PDF Drop Zone */
+  .pdf-drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    margin-bottom: 24px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--bg2);
+    position: relative;
+  }
+  .pdf-drop-zone:hover, .pdf-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(99,102,241,0.05);
+    box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+  }
+  .pdf-drop-zone .drop-icon { font-size: 2.5rem; margin-bottom: 8px; }
+  .pdf-drop-zone .drop-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+  .pdf-drop-zone .drop-hint { font-size: 0.82rem; color: var(--text2); }
+  .pdf-drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* PDF Progress Modal */
+  .pdf-progress {
+    background: var(--bg2);
+    border-radius: 16px;
+    padding: 28px;
+    width: 90%;
+    max-width: 520px;
+    box-shadow: var(--shadow2);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .pdf-progress h3 { margin-bottom: 16px; }
+  .progress-bar-container {
+    background: var(--bg3);
+    border-radius: 8px;
+    height: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 8px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .pdf-status {
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+  .pdf-results {
+    max-height: 40vh;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  .pdf-results .cat-summary {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pdf-results .cat-summary:last-child { border-bottom: none; }
+  .pdf-results .cat-name { display: flex; align-items: center; gap: 6px; }
+  .pdf-results .cat-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <header>
+    <h1><span>Finance</span> Tracker</h1>
+    <div class="header-actions">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span id="themeIcon">&#9790;</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Account Tabs -->
+  <div class="account-tabs">
+    <button class="tab-btn active" data-account="IL" onclick="switchAccount('IL')">Israel (&#8362;)</button>
+    <button class="tab-btn" data-account="SK" onclick="switchAccount('SK')">Slovakia (&euro;)</button>
+    <button class="tab-btn" data-account="ALL" onclick="switchAccount('ALL')">All Accounts</button>
+  </div>
+
+  <!-- PDF Drop Zone -->
+  <div class="pdf-drop-zone" id="pdfDropZone"
+       ondragover="event.preventDefault(); this.classList.add('drag-over')"
+       ondragleave="this.classList.remove('drag-over')"
+       ondrop="event.preventDefault(); this.classList.remove('drag-over'); handlePdfDrop(event.dataTransfer.files)">
+    <div class="drop-icon">&#128196;</div>
+    <div class="drop-title">Drop Bank Statement PDF here</div>
+    <div class="drop-hint">or click to browse &middot; Supports: VUB (Slovakia), Bank Hapoalim (Israel)</div>
+    <input type="file" accept=".pdf" onchange="handlePdfDrop(this.files)">
+  </div>
+
+  <!-- Month Filter -->
+  <div class="month-filter">
+    <label>Period:</label>
+    <input type="month" id="monthFilter" onchange="render()">
+    <button class="btn btn-secondary btn-sm" onclick="resetMonth()">All time</button>
+  </div>
+
+  <!-- Category Filter -->
+  <div class="cat-filter" id="catFilter"></div>
+
+  <!-- Summary Cards -->
+  <div class="summary-cards">
+    <div class="card"><div class="card-label">Income</div><div class="card-value income" id="totalIncome">0</div></div>
+    <div class="card"><div class="card-label">Expenses</div><div class="card-value expense" id="totalExpense">0</div></div>
+    <div class="card"><div class="card-label">Balance</div><div class="card-value balance" id="totalBalance">0</div></div>
+    <div class="card" id="secondAccountCard" style="display:none;">
+      <div class="card-label" id="secondLabel">-</div>
+      <div class="card-value balance" id="secondValue">0</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Expenses by Category</h3>
+      <canvas id="pieChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Monthly Overview</h3>
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Transactions -->
+  <div class="section-header">
+    <h2>Transactions</h2>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" onclick="openModal()">+ Add</button>
+    </div>
+  </div>
+
+  <!-- I/O Bar -->
+  <div class="io-bar">
+    <button class="btn btn-secondary btn-sm" onclick="exportData()">Export JSON</button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importFile').click()">Import JSON</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    <button class="btn btn-secondary btn-sm" onclick="openClaudeImport()">Import from Claude</button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('claudeFile').click()">&#128194; Load JSON File</button>
+    <input type="file" id="claudeFile" accept=".json" style="display:none" onchange="loadClaudeFile(event)">
+    <button class="btn btn-secondary btn-sm" onclick="exportExcel()">&#128202; Export Excel</button>
+    <button class="btn btn-danger btn-sm" onclick="removeDuplicates()">Remove Duplicates</button>
+    <button class="btn btn-danger btn-sm" onclick="clearAll()">Clear All Data</button>
+  </div>
+
+  <div class="transactions-list" id="txList"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Transaction</h3>
+    <input type="hidden" id="txId">
+
+    <div class="form-group">
+      <label>Type</label>
+      <div class="type-toggle">
+        <button id="typeExpense" class="active-expense" onclick="setType('expense')">Expense</button>
+        <button id="typeIncome" onclick="setType('income')">Income</button>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Account</label>
+        <select id="txAccount">
+          <option value="IL">Israel (&#8362;)</option>
+          <option value="SK">Slovakia (&euro;)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Amount</label>
+        <input type="number" id="txAmount" step="0.01" min="0" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Category</label>
+        <select id="txCategory"></select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="txDate">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="txDescription" placeholder="e.g. Grocery shopping">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTx()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Claude Import Modal -->
+<div class="modal-overlay" id="claudeModal">
+  <div class="modal">
+    <h3>Import from Claude</h3>
+    <p style="font-size:0.85rem;color:var(--text2);margin-bottom:12px;">
+      Paste the JSON array that Claude generated from your bank screenshot below.
+    </p>
+    <div class="form-group">
+      <label>JSON Data</label>
+      <textarea id="claudeJson" placeholder='[{"account":"IL","type":"expense","amount":50,"category":"Food","description":"Supermarket","date":"2026-02-12"}]'></textarea>
+    </div>
+    <div id="claudePreview" style="margin-bottom:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeClaudeImport()">Cancel</button>
+      <button class="btn btn-secondary" onclick="previewClaude()">Preview</button>
+      <button class="btn btn-primary" onclick="importClaude()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF Import Modal -->
+<div class="modal-overlay" id="pdfModal">
+  <div class="pdf-progress">
+    <h3 id="pdfModalTitle">&#128196; Processing PDF...</h3>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="pdfProgressBar"></div>
+    </div>
+    <div class="pdf-status" id="pdfStatus">Starting...</div>
+    <div class="pdf-results" id="pdfResults" style="display:none;"></div>
+    <div class="modal-actions" id="pdfActions" style="display:none;">
+      <button class="btn btn-secondary" onclick="closePdfModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmPdfImport()">&#10003; Import All</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Constants ---
+const EXPENSE_CATS = ['Food','Eating Out','Transport','Housing','Utilities','Entertainment','Travel','Health','Shopping','Subscriptions','Other'];
+const INCOME_CATS = ['Salary','Freelance','Transfer','Other'];
+const CAT_ICONS = {
+  Food:'&#127829;', 'Eating Out':'&#127869;', Transport:'&#128663;', Housing:'&#127968;', Utilities:'&#9889;',
+  Entertainment:'&#127916;', Travel:'&#9992;', Health:'&#128138;', Shopping:'&#128717;', Subscriptions:'&#128193;',
+  Other:'&#128196;', Salary:'&#128176;', Freelance:'&#128187;', Transfer:'&#128260;'
+};
+const CAT_COLORS = {
+  Food:'#f59e0b', 'Eating Out':'#ef4444', Transport:'#3b82f6', Housing:'#8b5cf6', Utilities:'#eab308',
+  Entertainment:'#ec4899', Travel:'#0ea5e9', Health:'#22c55e', Shopping:'#f97316', Subscriptions:'#6366f1',
+  Other:'#94a3b8', Salary:'#22c55e', Freelance:'#14b8a6', Transfer:'#64748b'
+};
+const CURRENCY = { IL: '₪', SK: '€' };
+
+// --- State ---
+let state = {
+  transactions: [],
+  settings: { theme: 'light' }
+};
+let currentAccount = 'IL';
+let currentType = 'expense';
+let currentCategory = 'ALL';
+
+// --- Init ---
+function init() {
+  const saved = localStorage.getItem('financeTracker');
+  if (saved) {
+    try { state = JSON.parse(saved); } catch(e) { console.error('Failed to load data'); }
+  }
+  if (state.settings.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('themeIcon').innerHTML = '&#9788;';
+  }
+  document.getElementById('monthFilter').value = new Date().toISOString().slice(0, 7);
+  populateCategories();
+  document.getElementById('txDate').value = new Date().toISOString().slice(0, 10);
+  render();
+}
+
+function save() {
+  localStorage.setItem('financeTracker', JSON.stringify(state));
+}
+
+// --- Theme ---
+function toggleTheme() {
+  const dark = state.settings.theme === 'dark';
+  state.settings.theme = dark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', state.settings.theme);
+  document.getElementById('themeIcon').innerHTML = dark ? '&#9790;' : '&#9788;';
+  save();
+  render();
+}
+
+// --- Account Tabs ---
+function switchAccount(acc) {
+  currentAccount = acc;
+  currentCategory = 'ALL';
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.account === acc);
+  });
+  render();
+}
+
+// --- Month Filter ---
+function resetMonth() {
+  document.getElementById('monthFilter').value = '';
+  render();
+}
+
+// --- Categories ---
+function populateCategories() {
+  const sel = document.getElementById('txCategory');
+  sel.innerHTML = '';
+  const cats = currentType === 'expense' ? EXPENSE_CATS : INCOME_CATS;
+  cats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+// --- Type Toggle ---
+function setType(type) {
+  currentType = type;
+  document.getElementById('typeExpense').className = type === 'expense' ? 'active-expense' : '';
+  document.getElementById('typeIncome').className = type === 'income' ? 'active-income' : '';
+  populateCategories();
+}
+
+// --- Modal ---
+function openModal(tx) {
+  document.getElementById('txModal').classList.add('active');
+  if (tx) {
+    document.getElementById('modalTitle').textContent = 'Edit Transaction';
+    document.getElementById('txId').value = tx.id;
+    document.getElementById('txAccount').value = tx.account;
+    document.getElementById('txAmount').value = tx.amount;
+    document.getElementById('txDate').value = tx.date;
+    document.getElementById('txDescription').value = tx.description;
+    setType(tx.type);
+    document.getElementById('txCategory').value = tx.category;
+  } else {
+    document.getElementById('modalTitle').textContent = 'Add Transaction';
+    document.getElementById('txId').value = '';
+    document.getElementById('txAmount').value = '';
+    document.getElementById('txDescription').value = '';
+    document.getElementById('txDate').value = new Date().toISOString().slice(0, 10);
+    if (currentAccount !== 'ALL') {
+      document.getElementById('txAccount').value = currentAccount;
+    }
+    setType('expense');
+  }
+}
+
+function closeModal() {
+  document.getElementById('txModal').classList.remove('active');
+}
+
+// --- Save Transaction ---
+function saveTx() {
+  const id = document.getElementById('txId').value;
+  const account = document.getElementById('txAccount').value;
+  const amount = parseFloat(document.getElementById('txAmount').value);
+  const category = document.getElementById('txCategory').value;
+  const date = document.getElementById('txDate').value;
+  const description = document.getElementById('txDescription').value.trim();
+
+  if (!amount || amount <= 0) { alert('Please enter a valid amount'); return; }
+  if (!date) { alert('Please select a date'); return; }
+
+  const tx = {
+    id: id || crypto.randomUUID(),
+    account,
+    type: currentType,
+    amount,
+    currency: account === 'IL' ? 'ILS' : 'EUR',
+    category,
+    description: description || category,
+    date
+  };
+
+  if (id) {
+    const idx = state.transactions.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      const oldTx = state.transactions[idx];
+      state.transactions[idx] = tx;
+
+      // If category changed, offer to update all similar transactions
+      if (oldTx.category !== tx.category) {
+        const similar = state.transactions.filter(t =>
+          t.id !== tx.id &&
+          t.description === oldTx.description &&
+          t.account === tx.account &&
+          t.type === tx.type &&
+          t.category === oldTx.category
+        );
+        if (similar.length > 0 && confirm(
+          `Found ${similar.length} more transaction(s) with "${oldTx.description}".\n` +
+          `Change them all from "${oldTx.category}" to "${tx.category}"?`
+        )) {
+          similar.forEach(t => { t.category = tx.category; });
+        }
+      }
+    }
+  } else {
+    state.transactions.push(tx);
+  }
+
+  save();
+  closeModal();
+  render();
+}
+
+// --- Delete ---
+function deleteTx(id) {
+  if (!confirm('Delete this transaction?')) return;
+  state.transactions = state.transactions.filter(t => t.id !== id);
+  save();
+  render();
+}
+
+// --- Filter ---
+function getFiltered() {
+  const month = document.getElementById('monthFilter').value;
+  return state.transactions.filter(t => {
+    if (currentAccount !== 'ALL' && t.account !== currentAccount) return false;
+    if (month && !t.date.startsWith(month)) return false;
+    if (currentCategory !== 'ALL' && t.category !== currentCategory) return false;
+    return true;
+  });
+}
+
+// --- Category Filter ---
+function renderCatFilter() {
+  const month = document.getElementById('monthFilter').value;
+  // Get categories from currently visible transactions (before category filter)
+  const baseTxs = state.transactions.filter(t => {
+    if (currentAccount !== 'ALL' && t.account !== currentAccount) return false;
+    if (month && !t.date.startsWith(month)) return false;
+    return true;
+  });
+  const cats = {};
+  baseTxs.forEach(t => { cats[t.category] = (cats[t.category] || 0) + 1; });
+
+  const container = document.getElementById('catFilter');
+  if (Object.keys(cats).length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  let html = '<label>Category:</label>';
+  const allActive = currentCategory === 'ALL';
+  html += `<span class="cat-chip ${allActive ? 'active' : ''}" style="${allActive ? 'background:var(--accent);' : ''}" onclick="filterCategory('ALL')">All (${baseTxs.length})</span>`;
+
+  // Sort: expense categories first, then income
+  const allCats = [...EXPENSE_CATS, ...INCOME_CATS.filter(c => !EXPENSE_CATS.includes(c))];
+  allCats.forEach(cat => {
+    if (!cats[cat]) return;
+    const active = currentCategory === cat;
+    const color = CAT_COLORS[cat] || '#94a3b8';
+    const icon = CAT_ICONS[cat] || '';
+    const style = active ? `background:${color};border-color:${color};` : '';
+    html += `<span class="cat-chip ${active ? 'active' : ''}" style="${style}" onclick="filterCategory('${cat}')">${cat} (${cats[cat]})</span>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function filterCategory(cat) {
+  currentCategory = cat;
+  render();
+}
+
+// --- Format ---
+function fmt(amount, account) {
+  const sym = CURRENCY[account] || (currentAccount !== 'ALL' ? CURRENCY[currentAccount] : '');
+  return `${sym}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// --- Render ---
+function render() {
+  renderCatFilter();
+  const filtered = getFiltered();
+
+  // Summary
+  const income = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const balance = income - expense;
+
+  const currSym = currentAccount === 'ALL' ? '' : CURRENCY[currentAccount];
+  document.getElementById('totalIncome').textContent = currSym + income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('totalExpense').textContent = currSym + expense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('totalBalance').textContent = currSym + balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Second account card for ALL view
+  const secCard = document.getElementById('secondAccountCard');
+  if (currentAccount === 'ALL') {
+    secCard.style.display = 'block';
+    const ilBal = filtered.filter(t => t.account === 'IL').reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+    const skBal = filtered.filter(t => t.account === 'SK').reduce((s, t) => s + (t.type === 'income' ? t.amount : -t.amount), 0);
+    document.getElementById('secondLabel').textContent = 'IL / SK Balance';
+    document.getElementById('secondValue').textContent = `₪${ilBal.toLocaleString(undefined,{minimumFractionDigits:2})} / €${skBal.toLocaleString(undefined,{minimumFractionDigits:2})}`;
+  } else {
+    secCard.style.display = 'none';
+  }
+
+  // Transaction list
+  const list = document.getElementById('txList');
+  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">&#128202;</div><p>No transactions yet.<br>Click "+ Add" to get started.</p></div>';
+  } else {
+    list.innerHTML = sorted.map(t => {
+      const icon = CAT_ICONS[t.category] || '&#128196;';
+      const color = CAT_COLORS[t.category] || '#94a3b8';
+      const sign = t.type === 'income' ? '+' : '-';
+      return `<div class="tx-item">
+        <div class="tx-cat-icon" style="background:${color}22;color:${color}">${icon}</div>
+        <div class="tx-info">
+          <div class="tx-desc">${esc(t.description)}</div>
+          <div class="tx-meta">${t.category} &middot; ${t.date} &middot; ${t.account === 'IL' ? 'Israel' : 'Slovakia'}</div>
+        </div>
+        <div class="tx-amount ${t.type}">${sign}${fmt(t.amount, t.account)}</div>
+        <div class="tx-actions">
+          <button class="btn btn-secondary btn-sm" onclick='openModal(${JSON.stringify(t).replace(/'/g,"&#39;")})'>&#9998;</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTx('${t.id}')">&#128465;</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  renderCharts(filtered);
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// --- Charts ---
+let pieChart, barChart;
+
+function renderCharts(filtered) {
+  const expenses = filtered.filter(t => t.type === 'expense');
+
+  // Pie chart - expenses by category
+  const catTotals = {};
+  expenses.forEach(t => {
+    catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+  });
+  const catLabels = Object.keys(catTotals);
+  const catData = Object.values(catTotals);
+  const catColors = catLabels.map(c => CAT_COLORS[c] || '#94a3b8');
+
+  const isDark = state.settings.theme === 'dark';
+  const textColor = isDark ? '#e2e8f0' : '#374151';
+
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{
+        data: catData,
+        backgroundColor: catColors,
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: textColor, padding: 12, font: { size: 11 } } }
+      }
+    }
+  });
+
+  // Bar chart - monthly income vs expenses (last 6 months)
+  const months = {};
+  filtered.forEach(t => {
+    const m = t.date.slice(0, 7);
+    if (!months[m]) months[m] = { income: 0, expense: 0 };
+    months[m][t.type] += t.amount;
+  });
+  const sortedMonths = Object.keys(months).sort().slice(-6);
+  const mLabels = sortedMonths.map(m => {
+    const [y, mo] = m.split('-');
+    return new Date(y, mo - 1).toLocaleDateString('en', { month: 'short', year: '2-digit' });
+  });
+
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: mLabels,
+      datasets: [
+        { label: 'Income', data: sortedMonths.map(m => months[m].income), backgroundColor: '#22c55e', borderRadius: 6 },
+        { label: 'Expenses', data: sortedMonths.map(m => months[m].expense), backgroundColor: '#ef4444', borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        x: { grid: { display: false }, ticks: { color: textColor } },
+        y: { grid: { color: isDark ? '#334155' : '#e5e7eb' }, ticks: { color: textColor } }
+      },
+      plugins: {
+        legend: { labels: { color: textColor, font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// --- Export / Import ---
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `finance-tracker-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.transactions) {
+        state = data;
+        save();
+        render();
+        alert('Data imported successfully!');
+      } else {
+        alert('Invalid file format.');
+      }
+    } catch(err) {
+      alert('Failed to parse JSON file.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// --- Claude Import ---
+function openClaudeImport() {
+  document.getElementById('claudeModal').classList.add('active');
+  document.getElementById('claudeJson').value = '';
+  document.getElementById('claudePreview').innerHTML = '';
+}
+
+function closeClaudeImport() {
+  document.getElementById('claudeModal').classList.remove('active');
+}
+
+function parseClaude() {
+  try {
+    const raw = document.getElementById('claudeJson').value.trim();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) throw new Error('Must be an array');
+    return arr.map(t => ({
+      id: crypto.randomUUID(),
+      account: t.account || 'IL',
+      type: t.type || 'expense',
+      amount: parseFloat(t.amount) || 0,
+      currency: (t.account || 'IL') === 'IL' ? 'ILS' : 'EUR',
+      category: t.category || 'Other',
+      description: t.description || t.category || 'Imported',
+      date: t.date || new Date().toISOString().slice(0, 10)
+    }));
+  } catch(e) {
+    alert('Invalid JSON. Please paste a valid JSON array.');
+    return null;
+  }
+}
+
+function previewClaude() {
+  const txs = parseClaude();
+  if (!txs) return;
+  const preview = document.getElementById('claudePreview');
+  preview.innerHTML = `<p style="font-size:0.85rem;color:var(--text2);margin-bottom:8px;">${txs.length} transaction(s) found:</p>` +
+    txs.map(t => `<div style="font-size:0.82rem;padding:4px 0;border-bottom:1px solid var(--border);">
+      ${t.type === 'income' ? '+' : '-'}${CURRENCY[t.account]}${t.amount.toFixed(2)} - ${esc(t.description)} (${t.category}, ${t.date})
+    </div>`).join('');
+}
+
+function importClaude() {
+  const txs = parseClaude();
+  if (!txs) return;
+  state.transactions.push(...txs);
+  save();
+  closeClaudeImport();
+  render();
+  alert(`${txs.length} transaction(s) imported!`);
+}
+
+// --- Load Claude JSON File ---
+function loadClaudeFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const arr = JSON.parse(e.target.result);
+      if (!Array.isArray(arr)) throw new Error('Must be an array');
+      const txs = arr.map(t => ({
+        id: crypto.randomUUID(),
+        account: t.account || 'SK',
+        type: t.type || 'expense',
+        amount: parseFloat(t.amount) || 0,
+        currency: (t.account || 'SK') === 'IL' ? 'ILS' : 'EUR',
+        category: t.category || 'Other',
+        description: t.description || t.category || 'Imported',
+        date: t.date || new Date().toISOString().slice(0, 10)
+      }));
+      if (confirm(`Found ${txs.length} transactions. Import them?`)) {
+        state.transactions.push(...txs);
+        save();
+        render();
+        alert(`${txs.length} transactions imported successfully!`);
+      }
+    } catch(err) {
+      alert('Failed to parse JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// --- Remove Duplicates ---
+function removeDuplicates() {
+  const before = state.transactions.length;
+  const seen = new Set();
+  state.transactions = state.transactions.filter(t => {
+    // Create a unique key from date + amount + description + type + account
+    const key = `${t.date}|${t.amount}|${t.description}|${t.type}|${t.account}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const removed = before - state.transactions.length;
+  if (removed === 0) {
+    alert('No duplicates found!');
+  } else {
+    save();
+    render();
+    alert(`Removed ${removed} duplicate transactions! (${before} → ${state.transactions.length})`);
+  }
+}
+
+// --- Clear All Data ---
+function clearAll() {
+  if (!confirm('Are you sure you want to delete ALL transactions? This cannot be undone!')) return;
+  if (!confirm('Really? This will permanently erase everything.')) return;
+  state.transactions = [];
+  save();
+  render();
+  alert('All data cleared!');
+}
+
+// --- Export to Excel (CSV) ---
+function exportExcel() {
+  const filtered = getFiltered();
+  if (filtered.length === 0) {
+    alert('No transactions to export!');
+    return;
+  }
+  // BOM for Excel UTF-8 support
+  const BOM = '\uFEFF';
+  const header = 'Date,Account,Type,Category,Amount,Currency,Description';
+  const rows = filtered
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(t => {
+      const desc = t.description.replace(/"/g, '""');
+      return `${t.date},${t.account},${t.type},${t.category},${t.amount},${t.currency},"${desc}"`;
+    });
+  const csv = BOM + header + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const month = document.getElementById('monthFilter').value;
+  const acc = currentAccount === 'ALL' ? 'all' : currentAccount;
+  a.download = `finance-${acc}-${month || 'all'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ==========================================
+// ======= PDF IMPORT & PARSING =============
+// ==========================================
+
+let pendingPdfTransactions = [];
+
+function handlePdfDrop(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    alert('Please select a PDF file.');
+    return;
+  }
+  processPdf(file);
+}
+
+async function processPdf(file) {
+  // Show modal
+  document.getElementById('pdfModal').classList.add('active');
+  document.getElementById('pdfModalTitle').innerHTML = '&#128196; Processing: ' + esc(file.name);
+  document.getElementById('pdfProgressBar').style.width = '0%';
+  document.getElementById('pdfStatus').textContent = 'Loading PDF library...';
+  document.getElementById('pdfResults').style.display = 'none';
+  document.getElementById('pdfActions').style.display = 'none';
+  pendingPdfTransactions = [];
+
+  try {
+    // Initialize PDF.js
+    const pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+    if (!pdfjsLib) {
+      throw new Error('PDF.js library not loaded. Please refresh the page.');
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Read file
+    document.getElementById('pdfStatus').textContent = 'Reading PDF file...';
+    document.getElementById('pdfProgressBar').style.width = '10%';
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const totalPages = pdf.numPages;
+
+    document.getElementById('pdfStatus').textContent = `Extracting text from ${totalPages} pages...`;
+
+    // Extract text from all pages using position-aware line reconstruction
+    let fullText = '';
+    for (let i = 1; i <= totalPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+
+      // Reconstruct lines using Y-position of each text item
+      // Items with same Y-position (within threshold) are on the same line
+      const items = textContent.items.filter(item => item.str.trim());
+      if (items.length === 0) { fullText += `\n=== PAGE ${i} ===\n`; continue; }
+
+      // Group items by Y position (transform[5] is Y coordinate)
+      const lineMap = new Map();
+      for (const item of items) {
+        const y = Math.round(item.transform[5]); // round Y to group nearby items
+        if (!lineMap.has(y)) lineMap.set(y, []);
+        lineMap.get(y).push({ x: item.transform[4], text: item.str });
+      }
+
+      // Sort lines by Y (descending = top to bottom for PDF coords)
+      const sortedYs = [...lineMap.keys()].sort((a, b) => b - a);
+      const pageLines = [];
+      for (const y of sortedYs) {
+        const lineItems = lineMap.get(y).sort((a, b) => a.x - b.x);
+        const lineText = lineItems.map(it => it.text).join('');
+        pageLines.push(lineText);
+      }
+
+      fullText += `\n=== PAGE ${i} ===\n` + pageLines.join('\n') + '\n';
+
+      const pct = 10 + Math.round((i / totalPages) * 50);
+      document.getElementById('pdfProgressBar').style.width = pct + '%';
+      document.getElementById('pdfStatus').textContent = `Extracting text: page ${i}/${totalPages}`;
+    }
+
+    // Detect bank format
+    document.getElementById('pdfProgressBar').style.width = '65%';
+    document.getElementById('pdfStatus').textContent = 'Detecting bank format...';
+
+    const bankType = detectBank(fullText);
+    if (!bankType) {
+      throw new Error('Could not detect bank format. Currently supported: VUB (Slovakia).\nIf this is a VUB statement, please make sure it\'s the original PDF.');
+    }
+
+    document.getElementById('pdfStatus').textContent = `Detected: ${bankType.name}. Parsing transactions...`;
+    document.getElementById('pdfProgressBar').style.width = '75%';
+
+    // Parse transactions
+    const transactions = bankType.parse(fullText);
+    document.getElementById('pdfProgressBar').style.width = '90%';
+
+    if (transactions.length === 0) {
+      throw new Error('No transactions found in this PDF. Make sure it\'s a bank statement.');
+    }
+
+    // Categorize
+    document.getElementById('pdfStatus').textContent = 'Categorizing transactions...';
+    const appTxs = transactions.map(tx => ({
+      id: crypto.randomUUID(),
+      account: bankType.account,
+      type: tx.is_income ? 'income' : 'expense',
+      amount: Math.round(tx.amount * 100) / 100,
+      currency: bankType.currency,
+      category: bankType.categorize(tx.description, tx.tx_type, tx.is_income),
+      description: bankType.cleanDesc ? bankType.cleanDesc(tx.description) : tx.description,
+      date: tx.date,
+    }));
+
+    pendingPdfTransactions = appTxs;
+    document.getElementById('pdfProgressBar').style.width = '100%';
+
+    // Show results summary
+    showPdfResults(appTxs, bankType);
+
+  } catch (err) {
+    document.getElementById('pdfStatus').textContent = 'Error: ' + err.message;
+    document.getElementById('pdfProgressBar').style.width = '100%';
+    document.getElementById('pdfProgressBar').style.background = 'var(--red)';
+    document.getElementById('pdfActions').style.display = 'flex';
+    document.getElementById('pdfActions').innerHTML = '<button class="btn btn-secondary" onclick="closePdfModal()">Close</button>';
+    console.error('PDF processing error:', err);
+  }
+}
+
+function showPdfResults(txs, bankType) {
+  const income = txs.filter(t => t.type === 'income');
+  const expenses = txs.filter(t => t.type === 'expense');
+  const totalIncome = income.reduce((s, t) => s + t.amount, 0);
+  const totalExpense = expenses.reduce((s, t) => s + t.amount, 0);
+
+  // Category breakdown
+  const catTotals = {};
+  expenses.forEach(t => {
+    catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+  });
+
+  const sym = bankType.currency === 'EUR' ? '\u20ac' : (bankType.currency === 'ILS' ? '\u20aa' : '$');
+
+  // Date range
+  const dates = txs.map(t => t.date).sort();
+  const dateRange = dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : '';
+
+  let html = `
+    <div style="margin-bottom:12px;">
+      <strong>${txs.length} transactions found</strong> &middot; ${dateRange}<br>
+      <span style="color:var(--green);">Income: ${sym}${totalIncome.toLocaleString(undefined,{minimumFractionDigits:2})}</span> &middot;
+      <span style="color:var(--red);">Expenses: ${sym}${totalExpense.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+    </div>
+    <div style="font-weight:600;margin-bottom:8px;">Expense Categories:</div>
+  `;
+
+  const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+  sortedCats.forEach(([cat, total]) => {
+    const color = CAT_COLORS[cat] || '#94a3b8';
+    const count = expenses.filter(t => t.category === cat).length;
+    html += `<div class="cat-summary">
+      <span class="cat-name"><span class="cat-dot" style="background:${color}"></span>${cat} (${count})</span>
+      <span>${sym}${total.toLocaleString(undefined,{minimumFractionDigits:2})}</span>
+    </div>`;
+  });
+
+  if (income.length > 0) {
+    html += `<div style="font-weight:600;margin:12px 0 8px;">Income: ${income.length} transaction(s)</div>`;
+  }
+
+  document.getElementById('pdfResults').innerHTML = html;
+  document.getElementById('pdfResults').style.display = 'block';
+  document.getElementById('pdfStatus').textContent = 'Ready to import!';
+  document.getElementById('pdfActions').style.display = 'flex';
+  document.getElementById('pdfActions').innerHTML = `
+    <button class="btn btn-secondary" onclick="closePdfModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="confirmPdfImport()">&#10003; Import ${txs.length} Transactions</button>
+  `;
+}
+
+function confirmPdfImport() {
+  if (pendingPdfTransactions.length === 0) return;
+  state.transactions.push(...pendingPdfTransactions);
+  save();
+  render();
+  const count = pendingPdfTransactions.length;
+  pendingPdfTransactions = [];
+  closePdfModal();
+  alert(`${count} transactions imported successfully!`);
+}
+
+function closePdfModal() {
+  document.getElementById('pdfModal').classList.remove('active');
+  // Reset progress bar color
+  document.getElementById('pdfProgressBar').style.background = '';
+  pendingPdfTransactions = [];
+  // Reset file input
+  const inp = document.querySelector('#pdfDropZone input[type="file"]');
+  if (inp) inp.value = '';
+}
+
+// === BANK DETECTION ===
+function detectBank(text) {
+  if (text.includes('VÚB') || text.includes('VUB') || text.includes('VÚB, a. s.') || text.includes('Všeobecná úverová banka')) {
+    return {
+      name: 'VÚB (Slovakia)',
+      account: 'SK',
+      currency: 'EUR',
+      parse: parseVUB,
+      categorize: categorizeVUB,
+      cleanDesc: cleanDescription
+    };
+  }
+  // Bank Hapoalim (Israel)
+  if (text.includes('הפועלים') || text.includes('בנק הפועלים') ||
+      text.includes('Bank Hapoalim') || text.includes('Hapoalim') ||
+      text.includes('bankhapoalim') ||
+      (text.includes('תאריך') && text.includes('חובה') && text.includes('זכות')) ||
+      (text.includes('תאריך') && text.includes('יתרה') && /\d{2}\/\d{2}\/\d{2}/.test(text)) ||
+      (text.includes('bankhapoalim.co.il')) ||
+      (/\d{2}\/\d{2}\/\d{4}/.test(text) && text.includes('₪') && text.includes('##'))) {
+    return {
+      name: 'Bank Hapoalim (Israel)',
+      account: 'IL',
+      currency: 'ILS',
+      parse: parseHapoalim,
+      categorize: categorizeHapoalim,
+      cleanDesc: cleanHapoalimDesc
+    };
+  }
+  return null;
+}
+
+// === VUB PARSER (ported from Python) ===
+function parseVUB(text) {
+  const lines = text.split('\n');
+  const cleanLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith('=== PAGE')) continue;
+    if (line.includes('VÚB, a. s.') || line.includes('VÚB,a.s.')) continue;
+    if (line.includes('podľa zákona o bankách')) continue;
+    const trimmed = line.trim();
+    if (['DATE', 'TRANSACTION TYPE', 'DESCRIPTION', 'AMOUNT', 'CURRENCY'].includes(trimmed)) continue;
+    if (/^\d+\/\d+$/.test(trimmed)) continue;
+    cleanLines.push(line);
+  }
+
+  const cleanText = cleanLines.join('\n');
+
+  // Split by dates (DD.MM.YYYY on its own line)
+  const datePattern = /^(\d{2}\.\d{2}\.\d{4})$/gm;
+  const transactions = [];
+  const parts = cleanText.split(datePattern);
+
+  let i = 1;
+  while (i < parts.length - 1) {
+    const dateStr = parts[i].trim();
+    const content = parts[i + 1].trim();
+
+    if (!content) { i += 2; continue; }
+
+    const contentLines = content.split('\n').map(l => l.trim()).filter(l => l);
+
+    if (contentLines.length < 3) { i += 2; continue; }
+
+    const txType = contentLines[0];
+
+    // Find amount line: European format with comma decimal, followed by EUR
+    let amountIdx = -1;
+    for (let j = 1; j < contentLines.length; j++) {
+      const cl = contentLines[j].replace(/\s/g, '');
+      if (/^[+-]?\d{1,3}(\.\d{3})*(,\d{2})$/.test(cl)) {
+        if (j + 1 < contentLines.length && contentLines[j + 1].trim() === 'EUR') {
+          amountIdx = j;
+          break;
+        } else if (j + 1 >= contentLines.length) {
+          amountIdx = j;
+          break;
+        }
+      }
+    }
+
+    if (amountIdx === -1) { i += 2; continue; }
+
+    const descLines = contentLines.slice(1, amountIdx);
+    const description = descLines.join(' ').trim();
+
+    // Parse European amount
+    let amountStr = contentLines[amountIdx].replace(/\s/g, '');
+    amountStr = amountStr.replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(amountStr);
+
+    if (isNaN(amount)) { i += 2; continue; }
+    if (Math.abs(amount) > 100000) { i += 2; continue; }
+
+    // Convert date DD.MM.YYYY → YYYY-MM-DD
+    const [dd, mm, yyyy] = dateStr.split('.');
+    const isoDate = `${yyyy}-${mm}-${dd}`;
+
+    transactions.push({
+      date: isoDate,
+      tx_type: txType,
+      description: description,
+      amount: Math.abs(amount),
+      is_income: amount > 0,
+    });
+
+    i += 2;
+  }
+
+  return transactions;
+}
+
+// === CATEGORIZATION (ported from Python) ===
+function categorizeVUB(desc, txType, isIncome) {
+  const d = desc.toUpperCase();
+
+  // === INCOME ===
+  if (isIncome) {
+    if (d.includes('KATZ IGOR')) return 'Transfer';
+    if (['SURFSHARK','DECATHLON','REFUND','VRATENIE','STORNO'].some(x => d.includes(x))) return 'Transfer';
+    if (d.includes('DIAĽNIČNÁ') || d.includes('DIALNICNA') || d.includes('NÁRODNÁ')) return 'Transfer';
+    if (txType === 'Incoming transfer') return 'Transfer';
+    return 'Other';
+  }
+
+  // === EXPENSES ===
+
+  // Housing
+  if (['MATUS JANOTA','UNICREDIT LEASING','LEASING','RENT','NAJOM','BYVANIE'].some(x => d.includes(x)))
+    return 'Housing';
+
+  // Food (Groceries)
+  if (['KAUFLAND','BILLA','LIDL','TESCO','COOP JEDNOTA',
+       'FRESHMARKET','FRESH MARKET','YEME','MILK AGRO',
+       'POTRAVINY','ICELAND','METRO','ALBERT',
+       'MIX MARKT','MIX~MARKT','MIXMARKT','MIX 4210',
+       'PENNY','ORIENT~POTRAVIN','ORIENT POTRAVIN',
+       'KOSIK.SK','DISKONT','C025','C036','C048','C003',
+       'TERNO','1053 TERNO','1002 TERNO','1034 TERNO',
+       'CHATA~KORENNY','SEVT NC'].some(x => d.includes(x)))
+    return 'Food';
+
+  // Eating Out
+  if (['MCDONALD','KFC','BURGER KING','BK BRATISLAVA',
+       'PIZZA','RESTAUR','BISTRO','CAFE','CAFFE',
+       'COFFEE','STARBUCKS','JULIUS MEINL',
+       'SUSHI','WOLT','BOLT FOOD','FOODORA',
+       'CHOPCHOP','JEDLO','OBEDOVE',
+       'STREET FOOD','STREET GOOD','FOOD TRUCK',
+       'BAGEL','CUKRAREN','ZMRZLIN','ICE CREAM',
+       'BAMBOO','KUBU','KINKA RAMEN','EDO-KIN',
+       'OLIVE YOU','PEKAREN','BAKERY','BAGETERIE',
+       'BAECKEREI','DITSCH','WURSTELSTAND',
+       'BUFET','BOICHUK BUFET','FLINSTONE',
+       'RYCHLE OBCERSTV','KAVY SVETA',
+       'KRCMA','PRIMA BASTA','GRILLKIRALY',
+       'FALATOZO','KIRALY KURTOS','MCD GYO',
+       'BOROZO','ECSERI BUFE','ASIA GRAND',
+       'SBX CENTRAL','AIDA FLUGHAFEN','MERS CAFFE',
+       'HILTON GARDEN','PODPLAMENNIKO',
+       'SERVICIO VELOCE','KOVACS KOVACS',
+       'BURES KAROLY',
+       'PH BRATISLAVA','PANTA RHEI'].some(x => d.includes(x))) {
+    if (d.includes('PANTA RHEI')) return 'Shopping';
+    return 'Eating Out';
+  }
+
+  // Transport
+  if (['BOLT','UBER','REGIOJET','ZSSK','TAXI',
+       'PARKING','PARKOV','PARKOLO','PARKGARAGE',
+       'PARKHAUS','GARAZ HOTEL PAR',
+       'PETROL','OMV','SHELL','BENZIN',
+       'SLOVNAFT','MOL 304','LUKOIL','ORLEN',
+       'AVIA3910','ENI 8',
+       'TOLL','DIALNIC','EDALNICE','EZNAMKA',
+       'FLIXBUS','OMIO','LINZ CITY EXPRE',
+       'WIENER LINIEN','BKK BUDAPEST',
+       'DPB.SK','IDS BK','IDSJMK',
+       'ASFINAG','SHOP.ASFINAG',
+       'CLEVER PARK','ECS-PARK',
+       'FLUGHAFEN'].some(x => d.includes(x))) {
+    if (d.includes('BOLT FOOD')) return 'Eating Out';
+    return 'Transport';
+  }
+
+  // Utilities
+  if (['ORANGE','O2 ','TELEKOM','VODAFONE',
+       'ELECTRIC','VODA','WATER','INTERNET',
+       'SPP','ZSE','ENERGIA'].some(x => d.includes(x)))
+    return 'Utilities';
+
+  // Entertainment
+  if (['CINEMA','KINO','NETFLIX','SPOTIFY',
+       'FUNCITY','FUN CITY','DETSKY',
+       'ZABAV','AQUAPARK','ZOO','MUSEUM',
+       'THEATER','DIVADLO','CONCERT',
+       'BOWLING','ESCAPE','TRAMPOLIN',
+       'SPACE PARK','JUMP FUN','BUPPI',
+       'CYBERJUMP','ADVENTICA','GALANDIA',
+       'FLEXUM THERMAL','VIDAMPARKI',
+       'MORAVIAN SCIENC','SYNAGOGA',
+       'LOTSI SILVER','BRATISLAVA.SK',
+       'VIANOCNE TRHY','OC AUPARK','KC BRATISLAVA',
+       'BRICKLANDIA','PETRZALKASPORTU',
+       'ATRAKCE LOSTAK','BUDAVA',
+       'ZLAVOMAT'].some(x => d.includes(x))) {
+    if (d.includes('BUDAVA') && d.includes('SIKLO')) return 'Entertainment';
+    return 'Entertainment';
+  }
+
+  // Health & Beauty
+  if (['LEKAREN','PHARMACY','DOCTOR','LEKAR',
+       'DENTIST','HOSPITAL','NEMOCNICA','ZDRAVIE',
+       'DM 1','DM 19','DM BA','DM 340','DM 315','DM 193',
+       'DM-FIL','DROGERIE',
+       'DOUGLAS','NOTINO','MARIONNAUD','SEPHORA',
+       'ROSSMANN','TETA ','BIPA ',
+       'DR.MAX','HEBE ','HEBE EUROVEA',
+       'NECHTOVE STUDIO','NAILS NIVY','NAILOUNGE',
+       'PODONAIL','BARTOVA ZUZANA',
+       'ZEPEN HOUSE','MASIDA',
+       'STUDIO 51'].some(x => d.includes(x)))
+    return 'Health';
+
+  // Travel (BEFORE Shopping!)
+  if (['HOTEL','PENZION','RESIDENCE','DANUBIUS',
+       'BKG*HOTEL','BOOKING',
+       'WIZZ AIR','WIZZAIR','RYANAIR','TICKETSHOP',
+       'FLUGHAFEN WIEN'].some(x => d.includes(x))) {
+    if (d.includes('GARAZ HOTEL')) return 'Transport'; // parking garage
+    return 'Travel';
+  }
+
+  // Shopping
+  if (['H&M','ZARA','RESERVED','CCC','DEICHMANN',
+       'PRIMARK','NEW YORKER','PEPCO','KIKA','IKEA',
+       'ALZA','DATART','ELECTROWORLD','MALL.CZ',
+       'AMAZON','ALIEXPRESS','TEMU','ACTION',
+       'KIK TEXTIL','KIK ','TEDI','NORMAL',
+       'SPORTISIMO','DECATHLON','INTERSPORT',
+       'KNIHY','BOOK','OBI','HORNBACH','BAUMAX',
+       'TIGER','FLYING TIGER','HRACKAR','TOY',
+       'TAKKO','OBUV','SHOE',
+       'ELECTRODOM','EXPERT','MEDIAMARKT',
+       'MOJEPOHLADNICE','ALLEGRO','24-PAY','INVI',
+       'SINSAY','LPP ','CROPP','TEZENIS','C&A MODE',
+       'C~&~A~MODE',
+       'PANDORA','MONDIEU','NYX*',
+       'PANTA RHEI','MARTINUS',
+       'ENIGOO','VINTRICA',
+       'KRASNE VIANOCE','SOUVENIRS',
+       'FFAXCOPY','KRAJ AUPAR','8102 KRAJ',
+       'AUTOMYCKA','B&B SERVIS'].some(x => d.includes(x)))
+    return 'Shopping';
+
+  // Subscriptions & Fees
+  if (['EP.DOVE','DOVE.SK','SURFSHARK','VPN',
+       'SUBSCRIPTION','PREDPLATNE','APPLE.COM',
+       'GOOGLE PLAY','GOOGLE *','MICROSOFT',
+       'ADOBE','CANVA','CLAUDE.AI','ANTHROPIC',
+       'ELEVENLABS',
+       'VEDENIE KONTA','POPLATOK',
+       'POPL. ZOBR','MESAČNÝ','MESACNY',
+       'POISTENIE','SYMPLAX','BID, A.S.'].some(x => d.includes(x)))
+    return 'Subscriptions';
+
+  // ATM / Cash
+  if (['VÝBER HOTOVOSTI','VYBER HOTOVOSTI','ATM','BANKOMAT','CASH WITHDRAW'].some(x => d.includes(x)))
+    return 'Other';
+
+  // Personal transfers
+  if (['KAMILA ISHCHANOVA','TETIANA POPKOVA',
+       'RAPHAEL SHALOM','AVIV KATZ','KATZ FAMILY',
+       'KSENIIA BRYZHA','FAZIK PAVOL',
+       'NGUYEN HOANG','PALITRA',
+       'SSKD','FB251262',
+       'GRIF','TRITON'].some(x => d.includes(x)))
+    return 'Other';
+
+  // Misc fuel
+  if (['ORLEN','AVIA','ENI '].some(x => d.includes(x)))
+    return 'Transport';
+
+  // Misc eating out
+  if (['TCHIBO','SERVIZIO VELOCE'].some(x => d.includes(x)))
+    return 'Eating Out';
+
+  // Misc shopping
+  if (['TEXTILECO','NAY,','SUMUP'].some(x => d.includes(x)))
+    return 'Shopping';
+
+  // VUB encoded descriptions
+  if (d.includes('VUB,A.S.')) {
+    if (['MIX~MARKT','MIXMARKT'].some(x => d.includes(x))) return 'Food';
+    if (['TERNO','C025','C048','C003','C036','ORIENT~POTRAVIN','CHATA~KORENNY'].some(x => d.includes(x))) return 'Food';
+    if (['BAGETERIE','BAECKEREI','KRCMA','SB~EUROVEA'].some(x => d.includes(x))) return 'Eating Out';
+    if (['BARTOVA~ZUZANA','BARTOVA ZUZANA'].some(x => d.includes(x))) return 'Health';
+    if (['PARKING','PARKOLO','MOL~','FSA2','LINZ~CITY','IDS~BK','EZNAMKA'].some(x => d.includes(x))) return 'Transport';
+    if (['ADVENTICA','CYBERJUMP','BRICKLANDIA','ZLAVOMAT','VIDAMPARKI','MORAVIAN','SYNAGOGA','BUDAVA'].some(x => d.includes(x))) return 'Entertainment';
+    if (['DOVE','EP.DOVE','SZFB','DDSURFSHARK','DDNATALIA','BID~'].some(x => d.includes(x))) return 'Subscriptions';
+    if (['DM~','DM 340','BARTOVA'].some(x => d.includes(x))) return 'Health';
+    if (['ORLEN','SAFON'].some(x => d.includes(x))) return 'Transport';
+    if (['ENIGOO','VINTRICA','C~&~A','TEDI','SINSAY'].some(x => d.includes(x))) return 'Shopping';
+    if (['HOTEL','BOOKIN','PENZION'].some(x => d.includes(x))) return 'Travel';
+    if (['GRIF','TRITON','TATRABANKA','CSOB'].some(x => d.includes(x))) return 'Other';
+    if (d.includes('BRATISLAVA')) return 'Other';
+    return 'Other';
+  }
+
+  // Remaining patterns
+  if (d.includes('NOTAR')) return 'Subscriptions';
+  if (d.includes('SAJADO') || d.includes('SK0403')) return 'Other';
+  if (d.includes('RESERVANTO')) return 'Entertainment';
+  if (d.includes('AMIJA')) return 'Shopping';
+  if (d.includes('AUPARK')) return 'Entertainment';
+  if (d.includes('HLAVNE MESTO')) return 'Other';
+  if (d.includes('WWW.MAX') || d.includes('HTTPS://WWW')) return 'Eating Out';
+  if (d.includes('SUVENYRY')) return 'Shopping';
+  if (d.includes('IKI,')) return 'Food';
+  if (d.includes('WE LOVE YOU')) return 'Eating Out';
+
+  return 'Other';
+}
+
+// ==========================================
+// ===== BANK HAPOALIM PARSER (Israel) ======
+// ==========================================
+
+// Bank Hapoalim PDF format (from PDF.js position-aware extraction):
+// Each transaction appears as a group:
+//   Line A: "₪BALANCE" + "AMOUNT" + "DD/MM/YYYYdescription"  (merged into one line from 3 positioned items)
+//   Line B: "##"
+//   Line C: "1" (income/credit) or "2" (expense/debit)
+//
+// When extracted with simple join, line A becomes: "₪75,197.05461.4410/02/2026הו"ק הלו' רבית"
+// OR from PyMuPDF: "10/02/2026הו"ק הלו' רבית461.44" (different order)
+
+function parseHapoalim(text) {
+  const transactions = [];
+  const lines = text.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // Try to find a date (DD/MM/YYYY) anywhere in the line
+    const dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (!dateMatch) continue;
+
+    const dateStr = dateMatch[1];
+    const dateIdx = dateMatch.index;
+
+    // Skip page header dates (period range etc.)
+    // A transaction line also has an amount and ₪ balance on the same or nearby lines
+    // Skip lines that are just dates or date ranges
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(line.trim())) continue;
+    if (line.includes('-') && /^\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}\/\d{2}\/\d{4}$/.test(line.replace(/\s/g, ''))) continue;
+
+    // Extract all amounts from the line (format: digits with comma thousands and .XX decimal)
+    const amounts = [];
+    const amtRegex = /([\d,]+\.\d{2})/g;
+    let amtM;
+    while ((amtM = amtRegex.exec(line)) !== null) {
+      amounts.push({ value: parseFloat(amtM[1].replace(/,/g, '')), index: amtM.index, raw: amtM[1] });
+    }
+
+    // We need at least 2 amounts (transaction amount + balance) to be a valid transaction line
+    if (amounts.length < 2) {
+      // Maybe the format has amounts on separate lines (PyMuPDF style)
+      // Try: line is "DD/MM/YYYYdescriptionAMOUNT" with one amount
+      if (amounts.length === 1) {
+        // Check if there's a ₪ balance on next line
+        let hasBalance = false;
+        for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
+          if (lines[j].trim().startsWith('₪')) { hasBalance = true; break; }
+        }
+        if (!hasBalance) continue;
+      } else {
+        continue;
+      }
+    }
+
+    // Extract description: text between date and amounts (or after date in RTL)
+    // The date+description part: find text after the date that isn't a number
+    const afterDate = line.slice(dateIdx + 10); // 10 = length of DD/MM/YYYY
+    const beforeDate = line.slice(0, dateIdx);
+
+    // Description is the non-numeric text near the date
+    let description = '';
+    // Remove all amounts and ₪ values from afterDate to get description
+    let descCandidate = afterDate.replace(/₪[\d,]+\.\d{2}/g, '').replace(/[\d,]+\.\d{2}/g, '').trim();
+    if (descCandidate) {
+      description = descCandidate;
+    } else {
+      // Try beforeDate
+      descCandidate = beforeDate.replace(/₪[\d,]+\.\d{2}/g, '').replace(/[\d,]+\.\d{2}/g, '').trim();
+      description = descCandidate;
+    }
+
+    if (!description) continue;
+
+    // Transaction amount: the non-balance amount
+    // Balance has ₪ prefix, transaction amount doesn't
+    let txAmount = 0;
+    const balanceMatch = line.match(/₪([\d,]+\.\d{2})/);
+    if (amounts.length >= 2 && balanceMatch) {
+      const balanceVal = parseFloat(balanceMatch[1].replace(/,/g, ''));
+      // Transaction amount is the one that's NOT the balance
+      for (const a of amounts) {
+        if (Math.abs(a.value - balanceVal) > 0.001) {
+          txAmount = a.value;
+          break;
+        }
+      }
+    } else if (amounts.length === 1) {
+      txAmount = amounts[0].value;
+    }
+
+    if (txAmount <= 0) continue;
+
+    // Find direction indicator: "1" (income) or "2" (expense) on a standalone line
+    // The order varies by extraction method:
+    //   PDF.js position-aware: transaction line → "2" → "##" → next transaction
+    //   PyMuPDF: transaction line → "₪balance" → "##" → "2"
+    // So we look for standalone "1" or "2" within the next few lines
+    let direction = null;
+    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+      const s = lines[j].trim();
+      if (s === '1') { direction = 'income'; break; }
+      if (s === '2') { direction = 'expense'; break; }
+      // Stop if we hit another transaction line (has a date + ₪)
+      if (/\d{2}\/\d{2}\/\d{4}/.test(s) && s !== line && s.includes('₪')) break;
+    }
+
+    if (!direction) continue;
+
+    // Convert date DD/MM/YYYY → YYYY-MM-DD
+    const [dd, mm, yyyy] = dateStr.split('/');
+    const isoDate = `${yyyy}-${mm}-${dd}`;
+
+    transactions.push({
+      date: isoDate,
+      tx_type: direction,
+      description: description,
+      amount: txAmount,
+      is_income: direction === 'income',
+    });
+  }
+
+  return transactions;
+}
+
+// === HAPOALIM CATEGORIZATION ===
+function categorizeHapoalim(desc, txType, isIncome) {
+  const d = desc;
+
+  // === INCOME ===
+  if (isIncome) {
+    if (d.includes('משכורת')) return 'Salary';
+    if (d.includes('מגדל מקפת') || d.includes('מיטב דש')) return 'Transfer';
+    if (d.includes('קצבת ילדים')) return 'Transfer';
+    if (d.includes('בטוח לאומי') || d.includes('ביטוח לאומי')) return 'Transfer';
+    if (d.includes('זיכוי מדיסקונט') || d.includes('זיכוי')) return 'Transfer';
+    if (d.includes('העברת כסף') || d.includes('העברה') || d.includes('נייד-הע')) return 'Transfer';
+    if (d.includes('מענק')) return 'Transfer';
+    if (d.includes('דיבידנד') || d.includes('מכירה-ני')) return 'Transfer';
+    if (d.includes('ישראכרט') || d.includes('בנקט')) return 'Transfer';
+    return 'Other';
+  }
+
+  // === EXPENSES ===
+
+  // Housing (loan = mortgage)
+  if (d.includes('הלו\'') || d.includes('הלואה') || d.includes('משכנתא') ||
+      d.includes('שכר דירה') || d.includes('שכ"ד') || d.includes('ארנונה'))
+    return 'Housing';
+
+  // Health
+  if (d.includes('מכבי') || d.includes('כללית') || d.includes('מאוחדת') || d.includes('לאומית') ||
+      d.includes('סופר פארם') || d.includes('בית מרקחת') || d.includes('רופא') ||
+      d.includes('שיניים') || d.includes('אופטיקה'))
+    return 'Health';
+
+  // Credit card charges (ישראכרט, מקס)
+  if (d.includes('ישראכרט') || d.includes('מקס איט'))
+    return 'Subscriptions';
+
+  // Pension/insurance deductions
+  if (d.includes('מיטב דש') || d.includes('מגדל') || d.includes('הראל') ||
+      d.includes('פניקס') || d.includes('כלל ביטוח') || d.includes('ביטוח'))
+    return 'Subscriptions';
+
+  // Foreign currency
+  if (d.includes('קניה-מטח') || d.includes('מט"ח') || d.includes('העברת מט'))
+    return 'Other';
+
+  // Securities
+  if (d.includes('ני"ע') || d.includes('קניה-ני'))
+    return 'Other';
+
+  // ATM
+  if (d.includes('בנקט') || d.includes('מזומן') || d.includes('כספומט') || d.includes('ATM'))
+    return 'Other';
+
+  // Transfers
+  if (d.includes('העברת כסף') || d.includes('נייד-הע') || d.includes('שיק'))
+    return 'Other';
+
+  // Food (Supermarkets)
+  if (['שופרסל', 'רמי לוי', 'מגא', 'יוחננוף', 'חצי חינם', 'פרש מרקט',
+       'ויקטורי', 'יינות ביתן', 'אושר עד', 'טיב טעם', 'מחסני השוק',
+       'פוליצר', 'קואופ', 'מכולת', 'קופיקס', 'COFIX', 'AM:PM'].some(x => d.includes(x)))
+    return 'Food';
+
+  // Eating Out
+  if (['מסעדה', 'קפה', 'פיצה', 'מקדונלד', 'ברגר', 'סושי', 'וולט', 'WOLT',
+       'פלאפל', 'שווארמה', 'חומוס', 'ארומה', 'AROMA', 'גרג', 'קפה קפה',
+       'לנדוור', 'רולדין', 'דומינוס', 'שיפודי', 'גריל', 'מאפה', 'מאפיה'].some(x => d.includes(x)))
+    return 'Eating Out';
+
+  // Transport
+  if (['דלק', 'פז', 'דור אלון', 'סונול', 'רב קו', 'רכבת', 'מונית',
+       'GETT', 'UBER', 'חניה', 'אגד', 'דן', 'מטרופולין', 'קווים',
+       'כביש', 'אגרה'].some(x => d.includes(x)))
+    return 'Transport';
+
+  // Utilities
+  if (['חשמל', 'מים', 'גז', 'פלאפון', 'סלקום', 'פרטנר', 'הוט', 'HOT',
+       'יס', 'YES', 'בזק', 'אינטרנט', 'גולן טלקום'].some(x => d.includes(x)))
+    return 'Utilities';
+
+  // Entertainment
+  if (['קולנוע', 'NETFLIX', 'SPOTIFY', 'הופעה', 'תיאטרון', 'מוזיאון',
+       'פארק', 'בריכה', 'כושר', 'ספורט', 'יוגה'].some(x => d.includes(x)))
+    return 'Entertainment';
+
+  // Travel
+  if (['מלון', 'HOTEL', 'BOOKING', 'AIRBNB', 'טיסה', 'אל על', 'WIZZ',
+       'שדה תעופה', 'הוסטל', 'צימר', 'AGODA'].some(x => d.includes(x)))
+    return 'Travel';
+
+  // Shopping
+  if (['AMAZON', 'ALIEXPRESS', 'SHEIN', 'TEMU', 'ZARA', 'H&M', 'FOX',
+       'קסטרו', 'גולף', 'איקאה', 'IKEA', 'KSP', 'PAYPAL',
+       'סטימצקי', 'חנות'].some(x => d.includes(x)))
+    return 'Shopping';
+
+  return 'Other';
+}
+
+// === HAPOALIM DESCRIPTION CLEANUP ===
+function cleanHapoalimDesc(desc) {
+  let d = desc;
+  d = d.replace(/\s{2,}/g, ' ').trim();
+  if (!d) d = 'Transaction';
+  return d;
+}
+
+// === VUB DESCRIPTION CLEANUP ===
+function cleanDescription(desc) {
+  let d = desc;
+  d = d.replace(/Platba kartou \+ G-pay;\s*/gi, '');
+  d = d.replace(/Platba kartou;\s*/gi, '');
+  d = d.replace(/VUB,A\.S\.;\s*DD/gi, '');
+  d = d.replace(/VÚB, A\.S\.;\s*DD/gi, '');
+  d = d.replace(/~/g, ' ');
+  d = d.replace(/\s{2,}/g, ' ').trim();
+  if (!d) d = 'Transaction';
+  return d;
+}
+
+// --- Start ---
+init();
+</script>
+</body>
+</html>

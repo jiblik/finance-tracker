@@ -1,0 +1,6 @@
+hapoalim_extract.txt
+parse_vub.py
+vub_all_transactions.json
+*.pdf
+*.pyc
+__pycache__/
