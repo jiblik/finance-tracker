@@ -394,6 +394,63 @@
     border-radius: 50%;
     display: inline-block;
   }
+
+  /* Sync */
+  .sync-btn {
+    background: var(--bg3);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--text);
+    transition: background 0.2s;
+    position: relative;
+  }
+  .sync-btn:hover { background: var(--accent); color: #fff; }
+  .sync-btn.syncing .sync-icon {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+  }
+  .sync-btn.no-token { opacity: 0.5; }
+  .sync-dot {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .sync-status {
+    font-size: 0.75rem;
+    color: var(--text2);
+    text-align: right;
+    margin-top: -16px;
+    margin-bottom: 16px;
+    min-height: 16px;
+  }
+  .sync-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 20px;
+    box-shadow: var(--shadow2);
+    font-size: 0.85rem;
+    z-index: 200;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 340px;
+  }
+  .sync-toast.show { opacity: 1; transform: translateY(0); }
+  .sync-toast.error { border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -402,11 +459,15 @@
   <header>
     <h1><span>Finance</span> Tracker</h1>
     <div class="header-actions">
+      <button class="sync-btn no-token" onclick="syncGist()" title="Sync with GitHub Gist">
+        <span class="sync-icon">&#x1f504;</span>
+      </button>
       <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
         <span id="themeIcon">&#9790;</span>
       </button>
     </div>
   </header>
+  <div class="sync-status" id="syncStatus"></div>
 
   <!-- Account Tabs -->
   <div class="account-tabs">
@@ -476,6 +537,7 @@
     <button class="btn btn-secondary btn-sm" onclick="document.getElementById('claudeFile').click()">&#128194; Load JSON File</button>
     <input type="file" id="claudeFile" accept=".json" style="display:none" onchange="loadClaudeFile(event)">
     <button class="btn btn-secondary btn-sm" onclick="exportExcel()">&#128202; Export Excel</button>
+    <button class="btn btn-secondary btn-sm" onclick="openSyncModal()">&#9881; Sync Settings</button>
     <button class="btn btn-danger btn-sm" onclick="removeDuplicates()">Remove Duplicates</button>
     <button class="btn btn-danger btn-sm" onclick="clearAll()">Clear All Data</button>
   </div>
@@ -570,6 +632,37 @@
   </div>
 </div>
 
+<!-- Sync Settings Modal -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <h3>&#9881; Sync Settings</h3>
+    <div class="form-group">
+      <label>GitHub Personal Access Token</label>
+      <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxx">
+      <small style="color:var(--text2);font-size:0.75rem;">
+        Needs only &quot;gist&quot; scope.
+        <a href="https://github.com/settings/tokens/new?scopes=gist&description=Finance+Tracker+Sync" target="_blank" style="color:var(--accent);">Create token &#8599;</a>
+      </small>
+    </div>
+    <div class="form-group">
+      <label>Gist ID <span style="font-weight:400;color:var(--text2);">(auto-filled after first sync)</span></label>
+      <input type="text" id="syncGistId" placeholder="Auto-generated on first sync">
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="syncAutoLoad" style="width:auto;">
+        Auto-sync on page load
+      </label>
+    </div>
+    <div id="syncInfo" style="font-size:0.82rem;color:var(--text2);margin-bottom:12px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" onclick="unlinkGist()">Unlink</button>
+      <button class="btn btn-secondary" onclick="closeSyncModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSyncSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // --- Constants ---
 const EXPENSE_CATS = ['Food','Eating Out','Transport','Housing','Utilities','Entertainment','Travel','Health','Shopping','Subscriptions','Other'];
@@ -601,6 +694,7 @@ function init() {
   if (saved) {
     try { state = JSON.parse(saved); } catch(e) { console.error('Failed to load data'); }
   }
+  if (!state.sync) state.sync = {};
   if (state.settings.theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.getElementById('themeIcon').innerHTML = '&#9788;';
@@ -609,6 +703,13 @@ function init() {
   populateCategories();
   document.getElementById('txDate').value = new Date().toISOString().slice(0, 10);
   render();
+  // Sync init
+  getDeviceId();
+  updateSyncButton();
+  if (state.sync.lastSyncAt) updateSyncStatus('Last synced: ' + timeAgo(state.sync.lastSyncAt));
+  if (state.sync.autoSync && getSyncToken() && state.sync.gistId) {
+    setTimeout(() => syncGist(), 1000);
+  }
 }
 
 function save() {
@@ -711,7 +812,8 @@ function saveTx() {
     currency: account === 'IL' ? 'ILS' : 'EUR',
     category,
     description: description || category,
-    date
+    date,
+    updatedAt: new Date().toISOString()
   };
 
   if (id) {
@@ -733,7 +835,7 @@ function saveTx() {
           `Found ${similar.length} more transaction(s) with "${oldTx.description}".\n` +
           `Change them all from "${oldTx.category}" to "${tx.category}"?`
         )) {
-          similar.forEach(t => { t.category = tx.category; });
+          similar.forEach(t => { t.category = tx.category; t.updatedAt = new Date().toISOString(); });
         }
       }
     }
@@ -983,6 +1085,7 @@ function parseClaude() {
     const raw = document.getElementById('claudeJson').value.trim();
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) throw new Error('Must be an array');
+    const now = new Date().toISOString();
     return arr.map(t => ({
       id: crypto.randomUUID(),
       account: t.account || 'IL',
@@ -991,7 +1094,8 @@ function parseClaude() {
       currency: (t.account || 'IL') === 'IL' ? 'ILS' : 'EUR',
       category: t.category || 'Other',
       description: t.description || t.category || 'Imported',
-      date: t.date || new Date().toISOString().slice(0, 10)
+      date: t.date || new Date().toISOString().slice(0, 10),
+      updatedAt: now
     }));
   } catch(e) {
     alert('Invalid JSON. Please paste a valid JSON array.');
@@ -1028,6 +1132,7 @@ function loadClaudeFile(event) {
     try {
       const arr = JSON.parse(e.target.result);
       if (!Array.isArray(arr)) throw new Error('Must be an array');
+      const now = new Date().toISOString();
       const txs = arr.map(t => ({
         id: crypto.randomUUID(),
         account: t.account || 'SK',
@@ -1036,7 +1141,8 @@ function loadClaudeFile(event) {
         currency: (t.account || 'SK') === 'IL' ? 'ILS' : 'EUR',
         category: t.category || 'Other',
         description: t.description || t.category || 'Imported',
-        date: t.date || new Date().toISOString().slice(0, 10)
+        date: t.date || new Date().toISOString().slice(0, 10),
+        updatedAt: now
       }));
       if (confirm(`Found ${txs.length} transactions. Import them?`)) {
         state.transactions.push(...txs);
@@ -1144,8 +1250,10 @@ function handleJsonImport(file) {
       // Merge: add only transactions with new IDs
       const existingIds = new Set(state.transactions.map(t => t.id));
       let added = 0;
+      const now = new Date().toISOString();
       for (const t of valid) {
         if (!t.id) t.id = Math.random().toString(36).substr(2, 8);
+        if (!t.updatedAt) t.updatedAt = now;
         if (!existingIds.has(t.id)) {
           state.transactions.push(t);
           existingIds.add(t.id);
@@ -1246,6 +1354,7 @@ async function processPdf(file) {
 
     // Categorize
     document.getElementById('pdfStatus').textContent = 'Categorizing transactions...';
+    const now = new Date().toISOString();
     const appTxs = transactions.map(tx => ({
       id: crypto.randomUUID(),
       account: bankType.account,
@@ -1255,6 +1364,7 @@ async function processPdf(file) {
       category: bankType.categorize(tx.description, tx.tx_type, tx.is_income),
       description: bankType.cleanDesc ? bankType.cleanDesc(tx.description) : tx.description,
       date: tx.date,
+      updatedAt: now,
     }));
 
     pendingPdfTransactions = appTxs;
@@ -1915,6 +2025,233 @@ function cleanDescription(desc) {
   d = d.replace(/\s{2,}/g, ' ').trim();
   if (!d) d = 'Transaction';
   return d;
+}
+
+// --- Sync: GitHub Gist ---
+const GIST_API = 'https://api.github.com/gists';
+const GIST_FILENAME = 'finance-tracker-data.json';
+
+function getSyncToken() { return localStorage.getItem('financeTrackerPAT') || ''; }
+function setSyncToken(t) { t ? localStorage.setItem('financeTrackerPAT', t.trim()) : localStorage.removeItem('financeTrackerPAT'); }
+
+function getDeviceId() {
+  if (!state.sync) state.sync = {};
+  if (!state.sync.deviceId) {
+    state.sync.deviceId = 'dev-' + Math.random().toString(36).substr(2, 8);
+    save();
+  }
+  return state.sync.deviceId;
+}
+
+async function gistApiRequest(method, url, body) {
+  const token = getSyncToken();
+  if (!token) throw new Error('No GitHub token configured');
+  const opts = {
+    method,
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/vnd.github+json'
+    }
+  };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const resp = await fetch(url, opts);
+  if (resp.status === 401) throw new Error('Invalid GitHub token. Check your PAT.');
+  if (resp.status === 404) throw new Error('Gist not found. It may have been deleted.');
+  if (!resp.ok) throw new Error('GitHub API error (' + resp.status + ')');
+  return resp.status === 204 ? null : resp.json();
+}
+
+function ensureUpdatedAt() {
+  const now = new Date().toISOString();
+  state.transactions.forEach(tx => {
+    if (!tx.updatedAt) tx.updatedAt = tx.date ? tx.date + 'T00:00:00.000Z' : now;
+  });
+}
+
+function buildSyncPayload() {
+  ensureUpdatedAt();
+  return {
+    transactions: state.transactions,
+    settings: state.settings,
+    sync: { gistId: state.sync?.gistId || null, lastSyncAt: new Date().toISOString(), deviceId: getDeviceId() },
+    schemaVersion: 1
+  };
+}
+
+async function createGist() {
+  const data = buildSyncPayload();
+  const result = await gistApiRequest('POST', GIST_API, {
+    description: 'Finance Tracker Sync Data',
+    public: false,
+    files: { [GIST_FILENAME]: { content: JSON.stringify(data, null, 2) } }
+  });
+  if (!state.sync) state.sync = {};
+  state.sync.gistId = result.id;
+  state.sync.lastSyncAt = new Date().toISOString();
+  save();
+  return result;
+}
+
+async function updateGist(data) {
+  const gistId = state.sync?.gistId;
+  if (!gistId) throw new Error('No Gist ID');
+  await gistApiRequest('PATCH', GIST_API + '/' + gistId, {
+    files: { [GIST_FILENAME]: { content: JSON.stringify(data, null, 2) } }
+  });
+  state.sync.lastSyncAt = new Date().toISOString();
+  save();
+}
+
+async function fetchGist() {
+  const gistId = state.sync?.gistId;
+  if (!gistId) return null;
+  const result = await gistApiRequest('GET', GIST_API + '/' + gistId);
+  const file = result.files[GIST_FILENAME];
+  if (!file) throw new Error('Sync file not found in Gist.');
+  return JSON.parse(file.content);
+}
+
+function mergeTransactions(localTxs, remoteTxs, lastSyncAt) {
+  const localMap = new Map(), remoteMap = new Map();
+  const syncTime = lastSyncAt ? new Date(lastSyncAt).getTime() : 0;
+  localTxs.forEach(tx => localMap.set(tx.id, tx));
+  remoteTxs.forEach(tx => remoteMap.set(tx.id, tx));
+  const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+  const merged = [];
+  let stats = { added: 0, updated: 0, kept: 0 };
+  for (const id of allIds) {
+    const local = localMap.get(id), remote = remoteMap.get(id);
+    if (local && !remote) {
+      if (syncTime > 0 && new Date(local.updatedAt || 0).getTime() < syncTime) continue; // deleted remotely
+      merged.push(local); stats.kept++;
+    } else if (!local && remote) {
+      if (syncTime > 0 && new Date(remote.updatedAt || 0).getTime() < syncTime) continue; // deleted locally
+      merged.push(remote); stats.added++;
+    } else {
+      const lt = new Date(local.updatedAt || 0).getTime(), rt = new Date(remote.updatedAt || 0).getTime();
+      if (rt > lt) { merged.push(remote); stats.updated++; }
+      else { merged.push(local); stats.kept++; }
+    }
+  }
+  return { merged, stats };
+}
+
+async function syncGist() {
+  const token = getSyncToken();
+  if (!token) { openSyncModal(); return; }
+  const btn = document.querySelector('.sync-btn');
+  if (btn.classList.contains('syncing')) return;
+  btn.classList.add('syncing');
+  updateSyncStatus('Syncing...');
+  try {
+    ensureUpdatedAt();
+    if (!state.sync?.gistId) {
+      await createGist();
+      showSyncToast('Sync initialized! ' + state.transactions.length + ' transactions uploaded.');
+    } else {
+      let remoteData;
+      try { remoteData = await fetchGist(); } catch(e) {
+        if (e.message.includes('not found')) {
+          state.sync.gistId = null; await createGist();
+          showSyncToast('Gist was missing. Created new one.');
+          updateSyncStatus('Last synced: just now');
+          btn.classList.remove('syncing'); updateSyncButton(); return;
+        }
+        throw e;
+      }
+      const remoteTxs = remoteData.transactions || [];
+      const { merged, stats } = mergeTransactions(state.transactions, remoteTxs, state.sync.lastSyncAt);
+      state.transactions = merged;
+      const payload = buildSyncPayload();
+      await updateGist(payload);
+      save(); render();
+      const parts = [];
+      if (stats.added > 0) parts.push(stats.added + ' added');
+      if (stats.updated > 0) parts.push(stats.updated + ' updated');
+      if (parts.length === 0) showSyncToast('Everything is up to date.');
+      else showSyncToast('Synced: ' + parts.join(', ') + '.');
+    }
+    updateSyncStatus('Last synced: just now');
+  } catch (err) {
+    console.error('Sync error:', err);
+    showSyncToast('Sync failed: ' + err.message, true);
+    updateSyncStatus('Sync failed');
+  } finally {
+    btn.classList.remove('syncing');
+    updateSyncButton();
+  }
+}
+
+// --- Sync UI ---
+function openSyncModal() {
+  document.getElementById('syncModal').classList.add('active');
+  document.getElementById('syncToken').value = getSyncToken();
+  document.getElementById('syncGistId').value = state.sync?.gistId || '';
+  document.getElementById('syncAutoLoad').checked = state.sync?.autoSync || false;
+  const info = document.getElementById('syncInfo');
+  if (state.sync?.lastSyncAt) info.textContent = 'Last synced: ' + new Date(state.sync.lastSyncAt).toLocaleString() + ' | Device: ' + (state.sync.deviceId || 'unknown');
+  else info.textContent = 'Not yet synced.';
+}
+function closeSyncModal() { document.getElementById('syncModal').classList.remove('active'); }
+
+function saveSyncSettings() {
+  const token = document.getElementById('syncToken').value.trim();
+  const gistId = document.getElementById('syncGistId').value.trim();
+  const autoSync = document.getElementById('syncAutoLoad').checked;
+  setSyncToken(token);
+  if (!state.sync) state.sync = {};
+  if (gistId) state.sync.gistId = gistId;
+  state.sync.autoSync = autoSync;
+  save(); closeSyncModal(); updateSyncButton();
+  if (token) showSyncToast('Sync settings saved. Click the sync button to sync.');
+}
+
+function unlinkGist() {
+  if (!confirm('Unlink sync? This removes sync config but keeps your local data.')) return;
+  setSyncToken('');
+  if (state.sync) { state.sync.gistId = null; state.sync.lastSyncAt = null; }
+  save(); closeSyncModal(); updateSyncButton(); updateSyncStatus('');
+  showSyncToast('Sync unlinked.');
+}
+
+function updateSyncButton() {
+  const btn = document.querySelector('.sync-btn');
+  if (!btn) return;
+  const hasToken = !!getSyncToken();
+  btn.classList.toggle('no-token', !hasToken);
+  let dot = btn.querySelector('.sync-dot');
+  if (hasToken && state.sync?.gistId) {
+    if (!dot) { dot = document.createElement('span'); dot.className = 'sync-dot'; btn.appendChild(dot); }
+  } else if (dot) { dot.remove(); }
+}
+
+function updateSyncStatus(text) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = text;
+}
+
+function showSyncToast(message, isError) {
+  const existing = document.querySelector('.sync-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'sync-toast' + (isError ? ' error' : '');
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+}
+
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  return Math.floor(hours / 24) + 'd ago';
 }
 
 // --- Start ---
